@@ -579,6 +579,14 @@ This workshop is a 100-level introduction. For deeper coverage of Valkey's capab
 - [Valkey blog](https://valkey.io/blog/)
 - [valkey-py client library](https://github.com/valkey-io/valkey-py)
 
+## Contributing
+
+This workshop currently covers Python. If you would like to contribute an implementation in another language (Node.js, Go, Java, Rust, or others), contributions are welcome. The core concepts (cache-aside, TTL, invalidation) are language-agnostic; only the implementation differs.
+
+Each language implementation should live in its own directory (e.g., `node/`, `go/`, `java/`) and follow the same workshop structure: a starter file with TODO placeholders, a completed reference in a `safety/` subdirectory, and a README that walks through the same five parts. Keeping the architecture and progression consistent across languages lets participants pick the version that matches their stack while learning the same caching fundamentals.
+
+If you are interested in contributing, open an issue describing which language you plan to cover.
+
 ## License
 
 [WTFPL](LICENSE)
