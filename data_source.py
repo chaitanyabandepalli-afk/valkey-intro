@@ -12,69 +12,42 @@ import time
 from datetime import datetime, timezone
 
 
-# Pre-defined dictionary of facts for known topics.
-# Output is deterministic: same topic always returns the same facts.
-_FACTS_DATABASE = {
-    "valkey": [
-        "Valkey is an open source high-performance key/value datastore.",
-        "Valkey supports strings, hashes, lists, sets, and sorted sets.",
-        "Valkey was created as a community-driven fork in 2024.",
-        "Valkey is licensed under the BSD 3-Clause license.",
-        "Valkey maintains backward compatibility with existing clients and protocols.",
-    ],
-    "python": [
-        "Python was created by Guido van Rossum and first released in 1991.",
-        "Python uses indentation to define code blocks instead of curly braces.",
-        "Python supports multiple programming paradigms including procedural, object-oriented, and functional.",
-        "The Python Package Index (PyPI) hosts over 400,000 packages.",
-        "Python is dynamically typed and garbage-collected.",
-    ],
-    "docker": [
-        "Docker uses OS-level virtualization to deliver software in containers.",
-        "Docker containers share the host system kernel, making them lighter than virtual machines.",
-        "A Dockerfile defines the steps to build a container image.",
-        "Docker Hub is a public registry for sharing container images.",
-        "Docker Compose allows defining multi-container applications in a single YAML file.",
-    ],
-    "caching": [
-        "Caching stores copies of data in a high-speed storage layer for faster retrieval.",
-        "Cache invalidation is one of the two hard problems in computer science.",
-        "A cache hit occurs when requested data is found in the cache.",
-        "A cache miss occurs when requested data is not in the cache and must be fetched from the source.",
-        "Time-to-live (TTL) determines how long a cached entry remains valid before expiring.",
-    ],
-}
+# TODO: Paste the _FACTS_DATABASE dictionary here.
+# This is a dictionary where each key is a topic name (string) and each value
+# is a list of fact strings about that topic.
+# Topics to include: "valkey", "python", "docker", "caching"
+_FACTS_DATABASE = {}
 
 
-def get_facts(topic: str) -> dict:
+def get_facts(topic):
     """
     Simulates fetching facts about a topic from a slow external source.
 
-    Introduces a configurable artificial delay (via SLOW_DELAY_SECONDS environment
-    variable, default 2.5 seconds) before returning results, simulating the latency
-    of an expensive external operation.
-
-    Args:
-        topic: The lookup key (e.g., "python", "valkey", "docker")
-
-    Returns:
-        dict with keys:
-            - "topic": the normalized topic string
-            - "facts": list of fact strings (empty list for unknown topics)
-            - "fetched_at": ISO 8601 timestamp of when the data was fetched
+    This function should:
+    1. Normalize the topic (strip whitespace, lowercase)
+    2. Sleep for SLOW_DELAY_SECONDS (default 2.5) to simulate latency
+    3. Look up facts from _FACTS_DATABASE
+    4. Return a dict with keys: "topic", "facts", "fetched_at"
     """
     # Normalize input: strip whitespace and lowercase
     normalized_topic = topic.strip().lower()
 
-    # Apply configurable artificial delay
-    delay = float(os.environ.get("SLOW_DELAY_SECONDS", "2.5"))
-    time.sleep(delay)
+    # TODO: Read the delay from the SLOW_DELAY_SECONDS environment variable
+    # (default to 2.5 seconds) and sleep for that duration.
+    # Hint: os.environ.get() and time.sleep()
 
-    # Look up facts (unknown topics get an empty list)
-    facts = _FACTS_DATABASE.get(normalized_topic, [])
+    # TODO: Look up facts for the normalized topic from _FACTS_DATABASE.
+    # If the topic is not found, use an empty list.
+    # Hint: dict.get(key, default)
+    facts = []
 
+    # TODO: Return a dictionary with three keys:
+    #   "topic" - the normalized topic string
+    #   "facts" - the list of facts (or empty list)
+    #   "fetched_at" - current UTC time as ISO format string
+    # Hint: datetime.now(timezone.utc).isoformat()
     return {
         "topic": normalized_topic,
         "facts": facts,
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "fetched_at": "",
     }

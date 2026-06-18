@@ -27,7 +27,9 @@ Caching also introduces complexity. A cache can become a critical dependency. Ca
 
 ### Where caching fits in the architecture
 
-The pattern we're implementing is called "cache-aside" or "lazy caching." The request flow works like this:
+The pattern we're implementing is called "cache-aside" (also known as "lazy caching"). In this pattern, the application is responsible for managing the cache. The cache does not talk to the data source directly. Instead, your application code checks the cache, decides whether to fetch from the source, and writes the result back to the cache when it does. The cache is "aside" from the main data path: it only gets populated when the application explicitly puts data there.
+
+The request flow works like this:
 
 1. Application receives a request
 2. Check the cache for existing data
@@ -46,21 +48,21 @@ The cache layer sits between your route handler and your data source. When the h
 
 ### What's Valkey?
 
-[Valkey](https://valkey.io/) is an open source, in-memory data structure store that the [Linux Foundation](https://www.linuxfoundation.org/press/linux-foundation-launches-open-source-valkey-community) hosts and the community maintains. It stores data in RAM, which means reads and writes complete in sub-millisecond time. For this workshop, you'll use it as a straightforward key/value cache: store a JSON string under a key, retrieve it later by that same key.
+[Valkey](https://valkey.io/) is an open source, in-memory datastore that the [Linux Foundation](https://www.linuxfoundation.org/press/linux-foundation-launches-open-source-valkey-community) hosts and the community maintains. It stores data in RAM, which means reads and writes complete in sub-millisecond time. For this workshop, you'll use it as a straightforward key/value cache: store a JSON string under a key, retrieve it later by that same key.
 
 ## Part 2: Building the application without a cache
 
-In this part, you create a Flask web application that fetches data from a deliberately slow source. Every request takes over two seconds. This baseline is the point: you need to feel the problem before the solution makes sense.
+In this part, you complete a Flask web application that fetches data from a deliberately slow source. Every request takes over two seconds. This baseline is the point: you need to feel the problem before the solution makes sense.
+
+The project already contains starter files with TODO placeholders. You will open each file and fill in the missing logic. The code blocks below show what the completed version looks like, so you know exactly what to paste in.
 
 ### The data source
 
-Create a file called `data_source.py` in your project root:
+Open `data_source.py` in your text editor. You will see a skeleton with TODO comments marking where code needs to go. Replace the TODOs with the following:
+
+First, replace the empty `_FACTS_DATABASE = {}` with this populated dictionary:
 
 ```python
-import os
-import time
-from datetime import datetime, timezone
-
 _FACTS_DATABASE = {
     "valkey": [
         "Valkey is an open source high-performance key/value datastore.",
@@ -91,8 +93,11 @@ _FACTS_DATABASE = {
         "Time-to-live (TTL) determines how long a cached entry remains valid before expiring.",
     ],
 }
+```
 
+Then, replace the TODO comments in the `get_facts` function with this logic:
 
+```python
 def get_facts(topic):
     normalized_topic = topic.strip().lower()
 
@@ -114,28 +119,9 @@ The output is deterministic: same topic in, same facts out. This matters when yo
 
 ### The Flask application
 
-Create `app.py`:
+Open `app.py`. The starter has the imports, Flask setup, and the home route already done. You need to fill in the `/lookup` route. Replace the TODO section with:
 
 ```python
-import os
-import time
-
-from dotenv import load_dotenv
-from flask import Flask, flash, redirect, render_template, request, url_for
-
-from data_source import get_facts
-
-load_dotenv()
-
-app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
-
-
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-
 @app.route("/lookup")
 def lookup():
     topic = request.args.get("topic", "").strip().lower()
@@ -158,17 +144,13 @@ def lookup():
         fetched_at=result["fetched_at"],
         cache_warning=None,
     )
-
-
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
 ```
 
 This is the no-cache version. Every request goes straight to the slow data source. The timing display shows how long each request took, and the cache status reads "DISABLED" because there's no cache yet. You'll change this in Part 4.
 
 ### The HTML template
 
-Create `templates/index.html`:
+Open `templates/index.html`. Replace the placeholder content with:
 
 ```html
 <!DOCTYPE html>
@@ -233,6 +215,8 @@ Create `templates/index.html`:
 ```
 
 ### Running it
+
+You will need a text editor to modify the project files. Any editor works: VS Code, Sublime Text, Notepad, TextEdit (in plain text mode), or whatever you are comfortable with. If you do not have a preferred editor, [VS Code](https://code.visualstudio.com/) is a free option that works on all platforms.
 
 First, set up a virtual environment. This keeps the workshop's dependencies isolated from the rest of your system (and on newer macOS and Ubuntu, `pip install` won't work without one):
 
@@ -317,7 +301,7 @@ This prints `True` if the connection succeeds.
 docker compose down
 ```
 
-Data is lost when the container is removed. That's fine for a workshop. Clean slate every time.
+Data is lost when the container is removed. That's fine for a workshop. You will get a clean slate every time.
 
 ## Part 4: Adding the cache layer
 
@@ -325,22 +309,11 @@ You've got a slow application and a running Valkey server. Now you connect the t
 
 ### The cache layer module
 
-Create `cache_layer.py`:
+Open `cache_layer.py`. You will see a class skeleton with TODO placeholders in each method. The docstrings describe what each method should do, step by step. Fill in the method bodies with the following implementations:
+
+**The `get` method:**
 
 ```python
-import json
-import logging
-
-import valkey
-
-logger = logging.getLogger(__name__)
-
-
-class CacheLayer:
-    def __init__(self, host="localhost", port=6379, ttl_seconds=30):
-        self._ttl_seconds = ttl_seconds
-        self._client = valkey.Valkey(host=host, port=port, decode_responses=True)
-
     def get(self, key):
         try:
             raw = self._client.get(key)
@@ -353,7 +326,11 @@ class CacheLayer:
         except (json.JSONDecodeError, TypeError) as exc:
             logger.warning("Deserialization error on get('%s'): %s", key, exc)
             return (None, False)
+```
 
+**The `set` method:**
+
+```python
     def set(self, key, data):
         try:
             self._client.set(key, json.dumps(data), ex=self._ttl_seconds)
@@ -361,14 +338,22 @@ class CacheLayer:
             logger.warning("Valkey connection error on set('%s'): %s", key, exc)
         except (TypeError) as exc:
             logger.warning("Serialization error on set('%s'): %s", key, exc)
+```
 
+**The `invalidate` method:**
+
+```python
     def invalidate(self, key):
         try:
             return self._client.delete(key) > 0
         except (valkey.ConnectionError, valkey.TimeoutError) as exc:
             logger.warning("Valkey connection error on invalidate('%s'): %s", key, exc)
             return False
+```
 
+**The `is_connected` property:**
+
+```python
     @property
     def is_connected(self):
         try:
@@ -383,37 +368,41 @@ Keys follow the pattern `facts:{topic}`. The `facts:` prefix namespaces cache en
 
 ### Updating app.py
 
-Now update `app.py` to use the cache layer. Here's the diff from Part 2:
-
-```diff
- import os
- import time
-
- from dotenv import load_dotenv
- from flask import Flask, flash, redirect, render_template, request, url_for
-
- from data_source import get_facts
-
- load_dotenv()
-
- app = Flask(__name__)
- app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
-
-+CACHE_ENABLED = os.environ.get("CACHE_ENABLED", "false").lower() == "true"
-+cache = None
-+
-+if CACHE_ENABLED:
-+    from cache_layer import CacheLayer
-+    cache = CacheLayer(
-+        host=os.environ.get("VALKEY_HOST", "localhost"),
-+        port=int(os.environ.get("VALKEY_PORT", "6379")),
-+        ttl_seconds=int(os.environ.get("CACHE_TTL_SECONDS", "30")),
-+    )
-```
-
-The `/lookup` route changes to check the cache before calling the data source:
+Now open `app.py` again. You need to replace the entire `/lookup` route you wrote in Part 2 with a version that checks the cache first, and add cache configuration at the top. Replace the full file contents with the following (comments mark what is new since Part 2):
 
 ```python
+import os
+import time
+
+from dotenv import load_dotenv
+from flask import Flask, flash, redirect, render_template, request, url_for
+
+from data_source import get_facts
+
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
+
+# --- NEW: cache configuration ---
+CACHE_ENABLED = os.environ.get("CACHE_ENABLED", "false").lower() == "true"
+cache = None
+
+if CACHE_ENABLED:
+    from cache_layer import CacheLayer
+    cache = CacheLayer(
+        host=os.environ.get("VALKEY_HOST", "localhost"),
+        port=int(os.environ.get("VALKEY_PORT", "6379")),
+        ttl_seconds=int(os.environ.get("CACHE_TTL_SECONDS", "30")),
+    )
+# --- END NEW ---
+
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+
 @app.route("/lookup")
 def lookup():
     topic = request.args.get("topic", "").strip().lower()
@@ -422,6 +411,7 @@ def lookup():
         flash("Please enter a topic to look up.")
         return redirect(url_for("home"))
 
+    # --- NEW: cache-aside logic replaces the direct call to get_facts ---
     cache_status = "DISABLED"
     cache_warning = None
     result = None
@@ -450,6 +440,7 @@ def lookup():
 
     end = time.perf_counter()
     elapsed_ms = round((end - start) * 1000)
+    # --- END NEW ---
 
     return render_template("index.html",
         topic=result["topic"],
@@ -459,19 +450,43 @@ def lookup():
         fetched_at=result["fetched_at"],
         cache_warning=cache_warning,
     )
+
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
 ```
 
 The logic: if caching is enabled and Valkey is reachable, check the cache. On a hit, return the cached data. On a miss, call the slow source, store the result, and return it. If Valkey is down, fall back to the data source directly and show a warning.
 
 ### Enabling caching
 
-Create a `.env` file (or copy `.env.example`) and set:
+Open your `.env` file (you created it earlier with `cp .env.example .env`) and change the `CACHE_ENABLED` value to `true`:
 
 ```
 CACHE_ENABLED=true
 ```
 
-Restart the app. Make sure your Valkey container is running.
+Now make sure Valkey is running. If you stopped it after Part 3, start it again:
+
+```bash
+docker compose up -d
+```
+
+You can confirm it's healthy with:
+
+```bash
+docker compose ps
+```
+
+You should see the valkey service listed with a status of "Up" or "healthy."
+
+Finally, restart the Flask app. Go to the terminal where `python app.py` is running, press `Ctrl+C` to stop it, then start it again:
+
+```bash
+python app.py
+```
+
+Flask needs to restart because the cache configuration is read once at startup. If you skip this step, `CACHE_ENABLED` will still be `false` in the running process even though you changed the file.
 
 ### Observing the difference
 
@@ -488,6 +503,8 @@ In case something has gone wrong, there are completed files in the `safety/` dir
 A cache that never updates serves stale data forever. Two mechanisms keep things fresh: automatic expiration (TTL) and manual invalidation.
 
 ### How TTL works
+
+TTL stands for "time-to-live." It's the number of seconds a cached entry remains valid before Valkey automatically deletes it. Think of it as an expiration date on the data.
 
 Every time the cache layer stores an entry, it sets a TTL. In your application, that's thirty seconds (configurable via `CACHE_TTL_SECONDS`). Valkey tracks the countdown internally and deletes the key when it reaches zero. No application code needed.
 
@@ -526,13 +543,15 @@ def invalidate():
     return redirect(url_for("home"))
 ```
 
+This route uses `methods=["POST"]` instead of the default GET. HTTP defines different "methods" (also called "verbs") for different kinds of actions. GET requests retrieve data without changing anything on the server; they're what your browser sends when you type a URL or submit the lookup form. POST requests tell the server to perform an action that changes state. Invalidating a cache entry is a state change (you're deleting data), so POST is the correct method. Using POST also prevents accidental invalidation from someone bookmarking or refreshing the URL.
+
 The `invalidate` method calls Valkey's [DEL command](https://valkey.io/commands/del/), which removes the key immediately.
 
 ### Testing invalidation
 
 1. Search for "valkey." Cache: MISS (entry stored).
 2. Search again. Cache: HIT (entry exists).
-3. Invalidate it:
+3. Invalidate it using `curl`. The `-X POST` flag tells curl to send a POST request instead of the default GET, and the `-d` flag sends the form data:
 
 ```bash
 curl -X POST http://localhost:5000/invalidate -d "topic=valkey"
